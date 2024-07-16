@@ -1,16 +1,17 @@
-import MetaEditParser, {Property} from "./parser";
-import type {App, TFile} from "obsidian";
+import MetaEditParser, { Property } from "./parser";
+import type { App, TFile } from "obsidian";
 import type MetaEdit from "./main";
 import GenericPrompt from "./Modals/GenericPrompt/GenericPrompt";
-import {EditMode} from "./Types/editMode";
+import { EditMode } from "./Types/editMode";
 import GenericSuggester from "./Modals/GenericSuggester/GenericSuggester";
-import type {MetaEditSettings} from "./Settings/metaEditSettings";
-import {ADD_FIRST_ELEMENT, ADD_TO_BEGINNING, ADD_TO_END} from "./constants";
-import type {ProgressProperty} from "./Types/progressProperty";
-import {ProgressPropertyOptions} from "./Types/progressPropertyOptions";
-import {MetaType} from "./Types/metaType";
-import {Notice, stringifyYaml} from "obsidian";
-import {log} from "./logger/logManager";
+import type { MetaEditSettings } from "./Settings/metaEditSettings";
+import { ADD_FIRST_ELEMENT, ADD_TO_BEGINNING, ADD_TO_END } from "./constants";
+import type { ProgressProperty } from "./Types/progressProperty";
+import { ProgressPropertyOptions } from "./Types/progressPropertyOptions";
+import { MetaType } from "./Types/metaType";
+import { Notice, stringifyYaml } from "obsidian";
+import { log } from "./logger/logManager";
+import type { PropertyPairUpdate } from "./IMetaEditApi";
 
 export default class MetaController {
     private parser: MetaEditParser;
@@ -315,7 +316,7 @@ export default class MetaController {
         // I'm aware this is hacky. Didn't want to spend a bunch of time rewriting old logic.
         // This uses the new frontmatter API to update the frontmatter. Later TODO: rewrite old logic to just do this & clean.
         if (property.type === MetaType.YAML) {
-            const updatedMetaData = `---\n${this.updateYamlProperty(property, newValue, file)}\n---`;
+            const updatedMetaData = `---\n${this.updateYamlProperty(property, newValue, file)}---`;
             //@ts-ignore
             const frontmatterPosition = this.app.metadataCache.getFileCache(file).frontmatterPosition;
             const fileContents = await this.app.vault.read(file);
@@ -342,7 +343,31 @@ export default class MetaController {
         await this.app.vault.modify(file, newFileContent);
     }
 
-    private escapeSpecialCharacters(text: string): string{
+    private updateYamlProperties(pairs: PropertyPairUpdate[], file: TFile): string {
+        const fileCache = this.app.metadataCache.getFileCache(file);
+        const frontMatter = fileCache.frontmatter;
+        for (let item of pairs) {
+            frontMatter[item.propertyName] = item.propertyValue;
+        }
+
+        return stringifyYaml(frontMatter);
+    }
+
+    public async updatePropertiesInFile(pairs: PropertyPairUpdate[], file: TFile): Promise<void> {
+        const updatedMetaData = `---\n${this.updateYamlProperties(pairs, file)}---`;
+        //@ts-ignore
+        const frontmatterPosition = this.app.metadataCache.getFileCache(file).frontmatterPosition;
+        const fileContents = await this.app.vault.read(file);
+
+        const deleteFrom = frontmatterPosition.start.offset;
+        const deleteTo = frontmatterPosition.end.offset;
+
+        const newFileContents = fileContents.substring(0, deleteFrom) + updatedMetaData + fileContents.substring(deleteTo);
+
+        await this.app.vault.modify(file, newFileContents);
+    }
+
+    private escapeSpecialCharacters(text: string): string {
         return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
     }
 

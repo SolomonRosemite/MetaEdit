@@ -1,8 +1,8 @@
 import type MetaEdit from "./main";
 import MetaController from "./metaController";
-import type {IMetaEditApi} from "./IMetaEditApi";
-import type {Property} from "./parser";
-import {TFile} from "obsidian";
+import type { IMetaEditApi, PropertyPairUpdate } from "./IMetaEditApi";
+import type { Property } from "./parser";
+import { TFile } from "obsidian";
 
 export class MetaEditApi {
     constructor(private plugin: MetaEdit) {
@@ -12,6 +12,7 @@ export class MetaEditApi {
         return {
             autoprop: this.getAutopropFunction(),
             update: this.getUpdateFunction(),
+            updateMany: this.getUpdateManyFunction(),
             getPropertyValue: this.getGetPropertyValueFunction(),
             getFilesWithProperty: this.getGetFilesWithPropertyFunction(),
             createYamlProperty: this.getCreateYamlPropertyFunction(),
@@ -35,6 +36,16 @@ export class MetaEditApi {
             if (!targetProperty) return;
 
             return controller.updatePropertyInFile(targetProperty, propertyValue, targetFile);
+        }
+    }
+
+    private getUpdateManyFunction(): (pairs: PropertyPairUpdate[], file: (TFile | string)) => Promise<undefined | void> {
+        return async (pairs: PropertyPairUpdate[], file: TFile | string) => {
+            const targetFile = this.getFileFromTFileOrPath(file);
+            if (!targetFile) return;
+
+            const controller: MetaController = new MetaController(this.plugin.app, this.plugin);
+            return controller.updatePropertiesInFile(pairs, targetFile);
         }
     }
 
